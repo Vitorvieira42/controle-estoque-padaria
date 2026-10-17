@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle de Estoque de Padaria</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🥖</span>
+      <span class="brand-text">
+        <strong>Controle de Estoque de Padaria</strong>
+        <small id="brandSubtitle">estoque · perdas · reposição</small>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Navegação principal">
+      <button class="nav-item is-active" data-view="dashboard" type="button">
+        <span class="nav-icon" aria-hidden="true">📊</span> Dashboard
+      </button>
+      <button class="nav-item" data-view="produtos" type="button">
+        <span class="nav-icon" aria-hidden="true">📦</span> Produtos
+        <span class="nav-badge" id="badgeProdutos"></span>
+      </button>
+      <button class="nav-item" data-view="movimentacoes" type="button">
+        <span class="nav-icon" aria-hidden="true">🔁</span> Movimentações
+      </button>
+      <button class="nav-item" data-view="alertas" type="button">
+        <span class="nav-icon" aria-hidden="true">⚠️</span> Alertas
+        <span class="nav-badge is-warn" id="badgeAlertas"></span>
+      </button>
+    </nav>
+
+    <div class="sidebar-block">
+      <h3 class="sidebar-title">Período analisado</h3>
+      <div class="segmented" id="periodPicker" role="group" aria-label="Período dos gráficos">
+        <button type="button" data-days="7">7d</button>
+        <button type="button" data-days="15">15d</button>
+        <button type="button" data-days="30" class="is-active">30d</button>
+        <button type="button" data-days="90">90d</button>
+      </div>
+    </div>
+
+    <div class="sidebar-block">
+      <h3 class="sidebar-title">Ações</h3>
+      <button class="btn btn-ghost btn-block" id="btnNovaMovimentacao" type="button">＋ Registrar movimentação</button>
+      <button class="btn btn-ghost btn-block" id="btnNovoProduto" type="button">＋ Novo produto</button>
+      <button class="btn btn-ghost btn-block" id="btnExportar" type="button">⬇ Exportar CSV</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost btn-block" id="btnDemo" type="button">↺ Recarregar dados demo</button>
+      <button class="btn btn-ghost btn-block" id="btnLimpar" type="button">🗑 Zerar estoque</button>
+      <button class="btn btn-ghost btn-block" id="btnTema" type="button">🌗 Alternar tema</button>
+      <p class="storage-note" id="storageNote"></p>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <header class="topbar">
+      <div>
+        <h1 id="viewTitle">Dashboard</h1>
+        <p id="viewHint">Visão geral do estoque, perdas e coberturas da padaria.</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" id="btnTopMov" type="button">Registrar movimentação</button>
+        <button class="btn" id="btnTopProduto" type="button">Novo produto</button>
+      </div>
+    </header>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section class="view is-active" id="view-dashboard" aria-labelledby="viewTitle">
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="alert-strip" id="alertStrip"></div>
+
+      <div class="chart-grid">
+        <article class="card card-wide">
+          <header class="card-head">
+            <div>
+              <h2>Fluxo do estoque em valor</h2>
+              <p class="card-sub" id="fluxoSub">Entradas, saídas (CMV), perdas e imobilizado por dia.</p>
+            </div>
+            <div class="chart-tools">
+              <button class="chip" type="button" data-toggle-series="valorEstoque">Imobilizado</button>
+              <button class="chip" type="button" data-toggle-series="valorEntrada">Entradas</button>
+              <button class="chip" type="button" data-toggle-series="valorSaida">Saídas</button>
+              <button class="chip" type="button" data-toggle-series="valorPerda">Perdas</button>
+            </div>
+          </header>
+          <div class="chart-box chart-box-tall"><canvas id="chartFluxo" aria-label="Gráfico de linhas do fluxo de estoque"></canvas></div>
+          <footer class="card-foot" id="fluxoFoot"></footer>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Imobilizado por categoria</h2>
+              <p class="card-sub">Clique em uma categoria para filtrar os produtos.</p>
+            </div>
+          </header>
+          <div class="chart-box chart-doughnut-wrap">
+            <canvas id="chartCategoria" aria-label="Gráfico de rosca do valor por categoria"></canvas>
+            <div class="doughnut-center" id="doughnutCenter"></div>
+          </div>
+          <footer class="card-foot">
+            <button class="btn btn-ghost btn-sm" id="btnLimparCategoria" type="button" hidden>Limpar filtro de categoria</button>
+          </footer>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Dias de cobertura</h2>
+              <p class="card-sub">Quanto tempo o saldo atual dura ao ritmo dos últimos 30 dias.</p>
+            </div>
+          </header>
+          <div class="chart-box"><canvas id="chartCobertura" aria-label="Gráfico de barras da cobertura em dias"></canvas></div>
+          <footer class="card-foot" id="coberturaFoot"></footer>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Top 10 produtos por receita</h2>
+              <p class="card-sub">Clique em uma barra para abrir o cadastro do produto.</p>
+            </div>
+          </header>
+          <div class="chart-box"><canvas id="chartTop" aria-label="Gráfico de barras horizontais da receita por produto"></canvas></div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Perdas por mês e motivo</h2>
+              <p class="card-sub">Vencimento, quebra e avaria em custo.</p>
+            </div>
+          </header>
+          <div class="chart-box"><canvas id="chartPerdas" aria-label="Gráfico de barras empilhadas das perdas por mês"></canvas></div>
+          <footer class="card-foot" id="perdasFoot"></footer>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= PRODUTOS ================= -->
+    <section class="view" id="view-produtos">
+      <div class="toolbar">
+        <div class="field field-grow">
+          <label for="buscaProduto">Buscar</label>
+          <input id="buscaProduto" type="search" placeholder="nome, SKU, fornecedor…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="filtroCategoria">Categoria</label>
+          <select id="filtroCategoria"></select>
+        </div>
+        <div class="field">
+          <label for="filtroStatus">Situação</label>
+          <select id="filtroStatus">
+            <option value="">Todas</option>
+            <option value="minimo">Abaixo do mínimo</option>
+            <option value="ruptura">Sem saldo</option>
+            <option value="ativo">Ativos</option>
+            <option value="inativo">Inativos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ordenarProduto">Ordenar por</label>
+          <select id="ordenarProduto">
+            <option value="nome">Nome</option>
+            <option value="total">Valor imobilizado</option>
+            <option value="qtd">Saldo</option>
+            <option value="cobertura">Cobertura (saldo − mínimo)</option>
+            <option value="custo">Custo unitário</option>
+            <option value="venda">Preço de venda</option>
+            <option value="categoria">Categoria</option>
+            <option value="validade">Validade</option>
+          </select>
+        </div>
+        <div class="field field-check">
+          <label class="check"><input type="checkbox" id="inverterOrdem"> <span>Inverter</span></label>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn" id="btnExportProdutos" type="button">⬇ CSV</button>
+          <button class="btn btn-primary" id="btnNovoProduto2" type="button">＋ Produto</button>
+        </div>
+      </div>
+
+      <div class="table-summary" id="produtosSummary"></div>
+
+      <div class="table-wrap">
+        <table class="table" id="tabelaProdutos">
+          <thead>
+            <tr>
+              <th data-sort="nome">Produto</th>
+              <th data-sort="categoria">Categoria</th>
+              <th data-sort="qtd" class="ta-right">Saldo</th>
+              <th class="ta-center">Ajuste</th>
+              <th data-sort="cobertura" class="ta-right">Mínimo</th>
+              <th data-sort="custo" class="ta-right">Custo un.</th>
+              <th data-sort="venda" class="ta-right">Venda un.</th>
+              <th data-sort="total" class="ta-right">Imobilizado</th>
+              <th data-sort="validade">Validade</th>
+              <th class="ta-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpoProdutos"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="produtosVazio" hidden>Nenhum produto encontrado com esses filtros.</div>
+    </section>
+
+    <!-- ================= MOVIMENTAÇÕES ================= -->
+    <section class="view" id="view-movimentacoes">
+      <div class="toolbar">
+        <div class="field field-grow">
+          <label for="buscaMov">Buscar</label>
+          <input id="buscaMov" type="search" placeholder="produto, motivo, observação…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="filtroTipo">Tipo</label>
+          <select id="filtroTipo">
+            <option value="">Todos</option>
+            <option value="entrada">Entradas</option>
+            <option value="saida">Saídas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filtroProduto">Produto</label>
+          <select id="filtroProduto"></select>
+        </div>
+        <div class="field">
+          <label for="filtroDesde">De</label>
+          <input id="filtroDesde" type="date">
+        </div>
+        <div class="field">
+          <label for="filtroAte">Até</label>
+          <input id="filtroAte" type="date">
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-ghost" id="btnLimparFiltrosMov" type="button">Limpar filtros</button>
+          <button class="btn" id="btnExportMov" type="button">⬇ CSV</button>
+          <button class="btn btn-primary" id="btnNovaMov" type="button">＋ Movimentação</button>
+        </div>
+      </div>
+
+      <div class="table-summary" id="movSummary"></div>
+
+      <div class="table-wrap">
+        <table class="table" id="tabelaMov">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Produto</th>
+              <th class="ta-right">Quantidade</th>
+              <th class="ta-right">Valor (custo)</th>
+              <th>Motivo</th>
+              <th>Observação</th>
+              <th class="ta-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpoMov"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="movVazio" hidden>Nenhuma movimentação para esse filtro.</div>
+    </section>
+
+    <!-- ================= ALERTAS ================= -->
+    <section class="view" id="view-alertas">
+      <div class="alert-columns">
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Reposição sugerida</h2>
+              <p class="card-sub">Saldo no ou abaixo do mínimo, ordenado pela falta.</p>
+            </div>
+            <button class="btn btn-sm" id="btnGerarPedido" type="button">⬇ Gerar lista de compra</button>
+          </header>
+          <div class="list" id="listaReposicao"></div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <div>
+              <h2>Validade próxima</h2>
+              <p class="card-sub">Vencidos ou vencendo na janela configurada.</p>
+            </div>
+            <div class="field field-inline">
+              <label for="janelaValidade">Janela</label>
+              <select id="janelaValidade">
+                <option value="3">3 dias</option>
+                <option value="7" selected>7 dias</option>
+                <option value="15">15 dias</option>
+                <option value="30">30 dias</option>
+              </select>
+            </div>
+          </header>
+          <div class="list" id="listaValidade"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ================= MODAIS ================= -->
+<div class="modal-root" id="modalRoot" hidden>
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" id="modalBox">
+    <header class="modal-head">
+      <h2 id="modalTitle">Título</h2>
+      <button class="modal-close" id="modalClose" type="button" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body" id="modalBody"></div>
+    <footer class="modal-foot" id="modalFoot"></footer>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+<script src="vendor/chart.umd.min.js"></script>
+<script src="src/utils.js"></script>
+<script src="src/seed.js"></script>
+<script src="src/store.js"></script>
+<script src="src/charts.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
